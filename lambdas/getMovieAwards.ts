@@ -12,12 +12,14 @@ export const handler: APIGatewayProxyHandlerV2 = async (event) => {
   try {
     console.log("Event: ", event);
 
-    // Extract path parameters
     const parameters = event?.pathParameters;
     const movieId = parameters?.movieId
       ? parseInt(parameters.movieId)
       : undefined;
     const awardBody = parameters?.awardBody;
+
+    const queryParams = event.queryStringParameters;
+    const minAwards = queryParams?.min ? parseInt(queryParams.min) : undefined;
 
     if (!movieId || !awardBody) {
       return {
@@ -29,7 +31,6 @@ export const handler: APIGatewayProxyHandlerV2 = async (event) => {
       };
     }
 
-    // Prepare the DynamoDB Get command
     const commandInput: GetCommandInput = {
       TableName: process.env.TABLE_NAME,
       Key: {
@@ -38,28 +39,39 @@ export const handler: APIGatewayProxyHandlerV2 = async (event) => {
       },
     };
 
-    // Executing the query
     const commandOutput = await ddbDocClient.send(new GetCommand(commandInput));
 
-    // Checking if the item exists
     if (!commandOutput.Item) {
       return {
         statusCode: 404,
         headers: {
           "content-type": "application/json",
         },
-        body: JSON.stringify({ message: "No awards found for the specified movie and award body." }),
+        body: JSON.stringify({
+          message: "No awards found for the specified movie and award body." + JSON.stringify(commandOutput),
+        }),
       };
     }
 
-    // Returning the result and catching any errors
+    const awardsData = commandOutput.Item;
+
+    if (minAwards !== undefined && awardsData.numAwards <= minAwards) {
+      return {
+        statusCode: 400,
+        headers: {
+          "content-type": "application/json",
+        },
+        body: JSON.stringify({ message: "Request failed"}),
+      };
+    }
+
     return {
       statusCode: 200,
       headers: {
         "content-type": "application/json",
       },
       body: JSON.stringify({
-        data: commandOutput.Item,
+        data: awardsData,
       }),
     };
   } catch (error: any) {
@@ -74,7 +86,6 @@ export const handler: APIGatewayProxyHandlerV2 = async (event) => {
   }
 };
 
-// Function to create DynamoDB Document Client
 function createDocumentClient() {
   const ddbClient = new DynamoDBClient({ region: process.env.REGION });
   const marshallOptions = {
