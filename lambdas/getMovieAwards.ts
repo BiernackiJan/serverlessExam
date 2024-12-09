@@ -48,7 +48,7 @@ export const handler: APIGatewayProxyHandlerV2 = async (event) => {
           "content-type": "application/json",
         },
         body: JSON.stringify({
-          message: "No awards found for the specified movie and award body." + JSON.stringify(commandOutput),
+          message: "No awards found for the specified movie and award body.",
         }),
       };
     }
